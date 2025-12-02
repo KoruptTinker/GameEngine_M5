@@ -1,8 +1,8 @@
 // client_main.cpp - Breakout-style demo client
 #include "Networking/GameClient.h"
+#include "main.h"
 #include <iostream>
 #include <string>
-#include "main.h"
 
 int main() {
   std::cout << "Starting Breakout GameClient..." << std::endl;
@@ -46,7 +46,10 @@ int main() {
   client.GetInput()->AddAction("MOVE_RIGHT", SDL_SCANCODE_D);
   // Space bar will request a ball launch from the server.
   client.GetInput()->AddAction("LAUNCH_BALL", SDL_SCANCODE_SPACE);
-
+  client.GetInput()->AddChordAction("DASH_LEFT",
+                                    {SDL_SCANCODE_LSHIFT, SDL_SCANCODE_A});
+  client.GetInput()->AddChordAction("DASH_RIGHT",
+                                    {SDL_SCANCODE_LSHIFT, SDL_SCANCODE_D});
   std::cout << "Connecting to server at " << serverAddress << ":"
             << publisherPort << "/" << pullPort << std::endl;
 
@@ -57,7 +60,9 @@ int main() {
 
   std::cout << "Client connected successfully!" << std::endl;
   std::cout << "Client ID: " << client.GetClientId() << std::endl;
-  std::cout << "Use A/D to move the bumper, SPACE to launch the ball, ESC to exit" << std::endl;
+  std::cout
+      << "Use A/D to move the bumper, SPACE to launch the ball, ESC to exit"
+      << std::endl;
 
   // Run the client (this will handle input, networking, and rendering)
   client.Run();
@@ -67,5 +72,3 @@ int main() {
 
   return 0;
 }
-
-

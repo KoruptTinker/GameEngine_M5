@@ -1,6 +1,6 @@
 #pragma once
-#include <iostream>
 #include <cmath>
+#include <iostream>
 
 #include "Core/GameEngine.h"
 #include "Core/Render.h"
@@ -35,6 +35,9 @@ public:
     EnableCollision(false, false);
     setComponent("lastFrameTime", Uint32(0));
     setComponent("animationDelay", 100);
+    // Track if dash actions were processed this frame
+    setComponent("dashLeftActive", false);
+    setComponent("dashRightActive", false);
     if (renderer) {
       SDL_Texture *tex1 = LoadTexture(renderer, "media/bumper_1.bmp");
       SDL_Texture *tex2 = LoadTexture(renderer, "media/bumper_2.bmp");
@@ -61,6 +64,10 @@ public:
 
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
+    // Reset dash tracking flags at the start of each frame
+    setComponent("dashLeftActive", false);
+    setComponent("dashRightActive", false);
+
     // Remember the entity manager so OnActivity can find the Ball later.
     if (entitySpawner && !hasComponent("entityManagerPtr")) {
       setComponent("entityManagerPtr", (void *)entitySpawner);
@@ -107,20 +114,33 @@ public:
     // speeds
     // 1.5x original bumper speed for snappier movement
     constexpr float moveSpeed = 300.0f;
+    constexpr float dashSpeed = 600.0f;
 
     if (actionName == "MOVE_LEFT") {
-      // Move left at constant speed, ignoring platform motion
-      SetVelocityX(-moveSpeed);
+      // Only move left if dash left was not processed this frame
+      bool dashLeftActive = getComponent<bool>("dashLeftActive");
+      if (!dashLeftActive) {
+        SetVelocityX(-moveSpeed);
+      }
     } else if (actionName == "MOVE_RIGHT") {
-      // Move right at constant speed, ignoring platform motion
-      SetVelocityX(moveSpeed);
+      // Only move right if dash right was not processed this frame
+      bool dashRightActive = getComponent<bool>("dashRightActive");
+      if (!dashRightActive) {
+        SetVelocityX(moveSpeed);
+      }
+    } else if (actionName == "DASH_LEFT") {
+      SetVelocityX(-dashSpeed);
+      setComponent("dashLeftActive", true);
+    } else if (actionName == "DASH_RIGHT") {
+      SetVelocityX(dashSpeed);
+      setComponent("dashRightActive", true);
     } else if (actionName == "LAUNCH_BALL") {
       // Server will send this action; detach the ball from the bumper and
       // give it an initial upward velocity if it's currently attached.
       EntityManager *entityMgr = nullptr;
       if (hasComponent("entityManagerPtr")) {
-        entityMgr =
-            reinterpret_cast<EntityManager *>(getComponent<void *>("entityManagerPtr"));
+        entityMgr = reinterpret_cast<EntityManager *>(
+            getComponent<void *>("entityManagerPtr"));
       }
       if (entityMgr) {
         Entity *ball = nullptr;
@@ -137,7 +157,7 @@ public:
           }
           if (attachedToBumper) {
             ball->setComponent("attachedToBumper", false);
-            ball->SetVelocity(0.0f, -500.0f);
+            ball->SetVelocity(GetVelocityX(), -500.0f);
           }
         }
       }
@@ -168,12 +188,14 @@ public:
   Ball(float x, float y, float w, float h, Timeline *tl,
        SDL_Renderer *renderer = nullptr)
       : Entity(x, y, w, h, tl) {
-    EnablePhysics(false); 
-    EnableCollision(false, false); 
+
+    EnablePhysics(false);
+    EnableCollision(false, false);
 
     entityType = "Ball";
     setComponent("screenWidth", 1800.0f);
     setComponent("screenHeight", 1000.0f);
+    setComponent("justCollided", false);
     if (renderer) {
       SDL_Texture *tex = LoadTexture(renderer, "media/ball.bmp");
       rendering.textures[0] = Texture{
@@ -191,7 +213,7 @@ public:
               EntityManager *entitySpawner) override {
     (void)deltaTime;
     (void)input;
-    
+    setComponent("justCollided", false);
     bool attachedToBumper = false;
     if (hasComponent("attachedToBumper")) {
       attachedToBumper = getComponent<bool>("attachedToBumper");
@@ -207,8 +229,8 @@ public:
       }
     }
 
-    // If the ball is attached to the bumper, keep it riding on top of the bumper
-    // and don't apply any wall/boundary logic yet.
+    // If the ball is attached to the bumper, keep it riding on top of the
+    // bumper and don't apply any wall/boundary logic yet.
     if (attachedToBumper && bumper) {
       position.x =
           bumper->position.x + (bumper->dimensions.x - dimensions.x) * 0.5f;
@@ -216,10 +238,10 @@ public:
       SetVelocity(0.0f, 0.0f);
       return;
     }
-    
+
     float screenWidth = getComponent<float>("screenWidth");
     float screenHeight = getComponent<float>("screenHeight");
-    
+
     bool hitLeftBoundary = position.x <= 0;
     bool hitRightBoundary = position.x + dimensions.x >= screenWidth;
     bool hitTopBoundary = position.y <= 0;
@@ -234,7 +256,7 @@ public:
         position.x = screenWidth - dimensions.x;
       }
     }
-    
+
     if (hitTopBoundary) {
       float currentVelY = GetVelocityY();
       SetVelocityY(-currentVelY);
@@ -260,51 +282,60 @@ public:
   }
 
   void OnCollision(Entity *other, CollisionData *data) override {
-    if (!other || !data) return;
+    if (!other || !data)
+      return;
 
     // Handle bumper collision with angle-based bounce
     if (other->entityType == "PlayerBumper") {
-      // Calculate the offset: distance between ball's center and bumper's center
+      // Calculate the offset: distance between ball's center and bumper's
+      // center
       float ballCenterX = position.x + dimensions.x * 0.5f;
       float ballCenterY = position.y + dimensions.y * 0.5f;
       float bumperCenterX = other->position.x + other->dimensions.x * 0.5f;
       float bumperCenterY = other->position.y + other->dimensions.y * 0.5f;
-      
+
       float offset = ballCenterX - bumperCenterX;
-      
+
       float halfBumperWidth = other->dimensions.x * 0.5f;
       float normalizedOffset = offset / halfBumperWidth;
-      
-      if (normalizedOffset < -1.0f) normalizedOffset = -1.0f;
-      if (normalizedOffset > 1.0f) normalizedOffset = 1.0f;
-      
+
+      if (normalizedOffset < -1.0f)
+        normalizedOffset = -1.0f;
+      if (normalizedOffset > 1.0f)
+        normalizedOffset = 1.0f;
+
       constexpr float maxBounceAngle = 75.0f;
       float bounceAngle = normalizedOffset * maxBounceAngle;
-      
+
       float angleRad = bounceAngle * M_PI / 180.0f;
-      
+
       float currentVelX = GetVelocityX();
       float currentVelY = GetVelocityY();
-      float currentSpeed = sqrtf(currentVelX * currentVelX + currentVelY * currentVelY);
-      
+      float currentSpeed =
+          sqrtf(currentVelX * currentVelX + currentVelY * currentVelY);
+
       if (currentSpeed < 1.0f) {
-        currentSpeed = 300.0f; 
+        currentSpeed = 300.0f;
       }
       float newVelX = currentSpeed * sinf(angleRad);
-      float newVelY = -currentSpeed * cosf(angleRad); 
-      
+      float newVelY = -currentSpeed * cosf(angleRad);
+
       SetVelocityX(newVelX);
       SetVelocityY(newVelY);
-    } else if(other->entityType == "Brick_1" || other->entityType == "Brick_2") {
-      if(other->getComponent<bool>("collidedAlready")) {
+    } else if (other->entityType == "Brick_1" ||
+               other->entityType == "Brick_2") {
+      if (other->getComponent<bool>("collidedAlready")) {
         return;
       }
-      if(data->normal.y != 0) {
+      other->setComponent("collidedAlready", true);
+      if (getComponent<bool>("justCollided")) {
+        return;
+      }
+      if (data->normal.y != 0) {
         SetVelocityY(-GetVelocityY());
       } else {
         SetVelocityX(-GetVelocityX());
       }
-      other->setComponent("collidedAlready", true);
     }
   }
 };
@@ -395,9 +426,11 @@ public:
   }
 
   void OnCollision(Entity *other, CollisionData *data) override {
-    if (!other || !data) return;
+    if (!other || !data)
+      return;
 
-    if (other->entityType != "Ball") return;
+    if (other->entityType != "Ball")
+      return;
 
     int state = getComponent<int>("state");
     float cooldown = getComponent<float>("brokenCooldown");
@@ -406,7 +439,7 @@ public:
       setComponent("state", 1);
       SetTextureState(1);
       SetGhostEntity(true);
-      setComponent("brokenCooldown", 0.2f); 
+      setComponent("brokenCooldown", 0.2f);
       setComponent("collidedAlready", true);
     } else if (cooldown == 0.0f) {
       setComponent("destroyed", true);
@@ -415,5 +448,3 @@ public:
     }
   }
 };
-
-

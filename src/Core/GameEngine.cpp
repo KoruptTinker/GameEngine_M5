@@ -9,22 +9,17 @@ using namespace std;
 
 // GameEngine Implementation
 GameEngine::GameEngine()
-    : window(nullptr),
-      renderer(nullptr),
-      running(false),
-      headlessMode(false),
+    : window(nullptr), renderer(nullptr), running(false), headlessMode(false),
       jobSystem(2) {}
 
 GameEngine::GameEngine(bool headless)
-    : window(nullptr),
-      renderer(nullptr),
-      running(false),
-      headlessMode(headless),
-      jobSystem(2) {}
+    : window(nullptr), renderer(nullptr), running(false),
+      headlessMode(headless), jobSystem(2) {}
 
 GameEngine::~GameEngine() { Shutdown(); }
 
-bool GameEngine::Initialize(const char *title, int resx, int resy, float timeScale) {
+bool GameEngine::Initialize(const char *title, int resx, int resy,
+                            float timeScale) {
   // Initialize SDL
   if (!SDL_Init(SDL_INIT_VIDEO)) {
     SDL_Log("Failed to initialize SDL: %s", SDL_GetError());
@@ -77,8 +72,10 @@ bool GameEngine::Initialize(const char *title, int resx, int resy, float timeSca
   rootTimeline = std::make_unique<Timeline>(timeScale, nullptr);
   entityManager = std::make_unique<EntityManager>();
   eventManager = std::make_unique<EventManager>(rootTimeline.get());
-  eventManager->RegisterEventHandler(EventType::EVENT_TYPE_COLLISION, new CollisionEventHandler());
-  eventManager->RegisterEventHandler(EventType::EVENT_TYPE_INPUT, new InputEventHandler());
+  eventManager->RegisterEventHandler(EventType::EVENT_TYPE_COLLISION,
+                                     new CollisionEventHandler());
+  eventManager->RegisterEventHandler(EventType::EVENT_TYPE_INPUT,
+                                     new InputEventHandler());
   collision = std::make_unique<CollisionSystem>();
   collision->SetEventManager(eventManager.get());
 
@@ -133,7 +130,7 @@ void GameEngine::Run() {
 void GameEngine::Update(float deltaTime, std::vector<Entity *> &entities) {
   // Get active input actions and process them for player entities
   std::vector<std::string> activeActions = input->GetActiveActions();
-  
+
   // Process input for all player-controllable entities
   for (auto &entity : entities) {
     if (entity->IsPlayerControllable()) {
@@ -153,9 +150,11 @@ void GameEngine::Update(float deltaTime, std::vector<Entity *> &entities) {
   collision->ProcessCollisions(entities);
 }
 
-void GameEngine::ProcessInputForEntity(Entity* entity, const std::vector<std::string>& actions) {
-  if (!entity) return;
-  
+void GameEngine::ProcessInputForEntity(
+    Entity *entity, const std::vector<std::string> &actions) {
+  if (!entity)
+    return;
+
   // Process each action for the entity
   // This follows the same pattern as GameServer::ProcessClientActions
   if (actions.empty()) {
@@ -185,7 +184,7 @@ void GameEngine::Render(std::vector<Entity *> &entities) {
   }
 
   // Clear screen to blue as required
-  renderSystem->SetBackgroundColor(0, 100, 200);  // Blue background
+  renderSystem->SetBackgroundColor(0, 0, 0); // Blue background
   renderSystem->Clear();
 
   // Render all visible entities
@@ -203,9 +202,7 @@ void GameEngine::UpdateSystemsParallel(float deltaTime) {
   jobSystem.ClearJobs();
 
   // Timeline update can be parallelized if needed
-  jobSystem.AddJob([this, deltaTime]() {
-    rootTimeline->Update(deltaTime);
-  });
+  jobSystem.AddJob([this, deltaTime]() { rootTimeline->Update(deltaTime); });
 
   // Execute all engine system updates in parallel
   jobSystem.ExecuteJobs();

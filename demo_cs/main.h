@@ -61,85 +61,98 @@ public:
 
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
-    // Remember the entity manager so OnActivity can find the Ball later.
-    if (entitySpawner && !hasComponent("entityManagerPtr")) {
-      setComponent("entityManagerPtr", (void *)entitySpawner);
-    }
+      (void)entitySpawner;
 
-    // Update animation
-    Uint32 lastFrameTime = getComponent<Uint32>("lastFrameTime");
-    int animationDelay = getComponent<int>("animationDelay");
-    int textureState = getComponent<int>("textureState");
-    lastFrameTime += (Uint32)(deltaTime * 1000); // Convert to milliseconds
-    if (lastFrameTime >= (Uint32)animationDelay) {
-      textureState = !textureState;
-      SetTextureState(textureState);
-      setComponent("textureState", textureState);
-      lastFrameTime = 0;
-    }
-    setComponent("lastFrameTime", lastFrameTime);
-
-    // Pause functionality
-    static bool pKeyWasPressed = false;
-    bool pKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_P);
-
-    if (pKeyIsPressed && !pKeyWasPressed) {
-      // Key was just pressed (not held)
-      if (timeline->getState() == Timeline::State::PAUSE) {
-        timeline->setState(Timeline::State::RUN);
-      } else {
-        timeline->setState(Timeline::State::PAUSE);
+      Uint32 lastFrameTime = getComponent<Uint32>("lastFrameTime");
+      int animationDelay = getComponent<int>("animationDelay");
+      lastFrameTime += (Uint32)(deltaTime * 1000);  // Convert to milliseconds
+      if (lastFrameTime >= (Uint32)animationDelay) {
+        rendering.currentFrame =
+            (rendering.currentFrame + 1) %
+            rendering.textures[rendering.currentTextureState].num_frames_x;
+        lastFrameTime = 0;
       }
-    }
-    pKeyWasPressed = pKeyIsPressed;
+      setComponent("lastFrameTime", lastFrameTime);
 
-    // Clamp bumper so it doesn't run off the screen edges
-    float screenWidth = getComponent<float>("screenWidth");
-    if (position.x < 0.0f) {
-      position.x = 0.0f;
-    }
-    if (position.x + dimensions.x > screenWidth) {
-      position.x = screenWidth - dimensions.x;
-    }
+      setComponent("grounded", false);
+
+      if (position.x <= 0) {
+        position.x = 0;
+      }
+
+      if (position.y > 1080) {
+        position.x = 100;
+        position.y = 100;
+        SetVelocityY(0.0f);
+        setComponent("grounded", false);
+        setComponent("groundRef", static_cast<Entity*>(nullptr));
+      }
+
+      static bool pKeyWasPressed = false;
+      bool pKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_P);
+
+      if (pKeyIsPressed && !pKeyWasPressed) {
+        if (timeline->getState() == Timeline::State::PAUSE) {
+          timeline->setState(Timeline::State::RUN);
+        } else {
+          timeline->setState(Timeline::State::PAUSE);
+        }
+      }
+      pKeyWasPressed = pKeyIsPressed;
+
+      static bool iKeyWasPressed = false;
+      static bool oKeyWasPressed = false;
+      static bool uKeyWasPressed = false;
+
+      bool iKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_I);
+      bool oKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_O);
+      bool uKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_U);
+
+      if (iKeyIsPressed && !iKeyWasPressed) {
+        timeline->setScale(timeline->getScale() - 0.5f);
+      }
+      if (oKeyIsPressed && !oKeyWasPressed) {
+        timeline->setScale(timeline->getScale() + 0.5f);
+      }
+      if (uKeyIsPressed && !uKeyWasPressed) {
+        timeline->setScale(0.5f);
+      }
+
+      iKeyWasPressed = iKeyIsPressed;
+      oKeyWasPressed = oKeyIsPressed;
+      uKeyWasPressed = uKeyIsPressed;
   }
 
   void OnActivity(const std::string &actionName) override {
     // speeds
-    // 1.5x original bumper speed for snappier movement
-    constexpr float moveSpeed = 300.0f;
-
+    constexpr float runSpeed = 200.0f;
+    constexpr float dashSpeed = 900.0f;
+    
+    // Get ground reference and grounded state
+    Entity* groundRef = getComponent<Entity*>("groundRef");
+    bool grounded = getComponent<bool>("grounded");
+    SDL_Log("OnActivity: actionName: %s", actionName.c_str());
     if (actionName == "MOVE_LEFT") {
       // Move left at constant speed, ignoring platform motion
       SetVelocityX(-moveSpeed);
     } else if (actionName == "MOVE_RIGHT") {
       // Move right at constant speed, ignoring platform motion
-      SetVelocityX(moveSpeed);
-    } else if (actionName == "LAUNCH_BALL") {
-      // Server will send this action; detach the ball from the bumper and
-      // give it an initial upward velocity if it's currently attached.
-      EntityManager *entityMgr = nullptr;
-      if (hasComponent("entityManagerPtr")) {
-        entityMgr =
-            reinterpret_cast<EntityManager *>(getComponent<void *>("entityManagerPtr"));
-      }
-      if (entityMgr) {
-        Entity *ball = nullptr;
-        for (Entity *e : entityMgr->getEntityVectorRef()) {
-          if (e && e->entityType == "Ball") {
-            ball = e;
-            break;
-          }
-        }
-        if (ball) {
-          bool attachedToBumper = false;
-          if (ball->hasComponent("attachedToBumper")) {
-            attachedToBumper = ball->getComponent<bool>("attachedToBumper");
-          }
-          if (attachedToBumper) {
-            ball->setComponent("attachedToBumper", false);
-            ball->SetVelocity(0.0f, -500.0f);
-          }
-        }
+      SetVelocityX(runSpeed);
+      setComponent("playerInputDirection", 1);
+    } else if (actionName == "DASH_LEFT") {
+      // Dash left (chord: Shift + A)
+      SetVelocityX(-dashSpeed);
+      setComponent("playerInputDirection", -1);
+    } else if (actionName == "DASH_RIGHT") {
+      // Dash right (chord: Shift + D)
+      SetVelocityX(dashSpeed);
+      setComponent("playerInputDirection", 1);
+    } else if (actionName == "JUMP") {
+      // Only jump if grounded, but don't reset horizontal velocity if not grounded
+      if (grounded) {
+        SetVelocityY(-1500.0f);
+        setComponent("grounded", false);
+        setComponent("wasGrounded", false);
       }
     } else {
       SetVelocityX(0);

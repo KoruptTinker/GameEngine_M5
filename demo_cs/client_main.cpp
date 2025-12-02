@@ -9,61 +9,49 @@ int main() {
 
   GameClient client;
 
-  // Initialize the client window to match the game resolution
-  if (!client.Initialize("Breakout Client", 1000, 1000, 1.0f)) {
-    std::cerr << "Failed to initialize client" << std::endl;
-    return 1;
-  }
+    client.RegisterEntity("TestEntity", [&client]() -> Entity* { return new TestEntity(100, 100, client.GetRootTimeline(), client.GetRenderer()); });
+    client.RegisterEntity("Platform", [&client]() -> Entity* { return new Platform(0, 0, 0, 0, false, client.GetRootTimeline(), client.GetRenderer()); });
+    
+    // Connect to the server (assuming server is running on localhost)
+    std::string serverAddress = "localhost";
+    int publisherPort = 5555;
+    int pullPort = 5556;
+    // Register single-key action
 
-  // Register entity factory functions for this game
-  client.RegisterEntity("PlayerBumper", [&client]() -> Entity * {
-    return new PlayerBumper(0, 0, 300, 75, client.GetRootTimeline(),
-                            client.GetRenderer());
-  });
-  client.RegisterEntity("Ball", [&client]() -> Entity * {
-    return new Ball(0, 0, 64, 64, client.GetRootTimeline(),
-                    client.GetRenderer());
-  });
-  client.RegisterEntity("Brick_1", [&client]() -> Entity * {
-    // brickType will be overwritten by network state; default to 0
-    return new Brick(0, 0, 384, 128, 0, client.GetRootTimeline(),
-                     client.GetRenderer());
-  });
+    client.GetInput()->AddAction("MOVE_LEFT", SDL_SCANCODE_A);
+    client.GetInput()->AddAction("MOVE_RIGHT", SDL_SCANCODE_D);
+    client.GetInput()->AddAction("JUMP", SDL_SCANCODE_SPACE);
+    
+    // Register chord actions (multiple keys pressed simultaneously)
+    // MEGA_JUMP: Shift + Space (both must be pressed together)
+    // DASH_LEFT: Shift + A (both must be pressed together)
 
-  client.RegisterEntity("Brick_2", [&client]() -> Entity * {
-    // brickType will be overwritten by network state; default to 0
-    return new Brick(0, 0, 384, 128, 1, client.GetRootTimeline(),
-                     client.GetRenderer());
-  });
-
-  // Connect to the server (assuming server is running on localhost)
-  std::string serverAddress = "localhost";
-  int publisherPort = 5555;
-  int pullPort = 5556;
-
-  // Map input actions for controlling the bumper
-  client.GetInput()->AddAction("MOVE_LEFT", SDL_SCANCODE_A);
-  client.GetInput()->AddAction("MOVE_RIGHT", SDL_SCANCODE_D);
-  // Space bar will request a ball launch from the server.
-  client.GetInput()->AddAction("LAUNCH_BALL", SDL_SCANCODE_SPACE);
-
-  std::cout << "Connecting to server at " << serverAddress << ":"
-            << publisherPort << "/" << pullPort << std::endl;
-
-  if (!client.ConnectToServer(serverAddress, publisherPort, pullPort)) {
-    std::cerr << "Failed to connect to server" << std::endl;
-    return 1;
-  }
-
-  std::cout << "Client connected successfully!" << std::endl;
-  std::cout << "Client ID: " << client.GetClientId() << std::endl;
-  std::cout << "Use A/D to move the bumper, SPACE to launch the ball, ESC to exit" << std::endl;
-
-  // Run the client (this will handle input, networking, and rendering)
-  client.Run();
-
-  client.Shutdown();
-  std::cout << "Client shutdown complete" << std::endl;
-
-  return 0;
+    client.GetInput()->AddChordAction("DASH_LEFT", {SDL_SCANCODE_LSHIFT, SDL_SCANCODE_A});
+    // DASH_RIGHT: Shift + D (both must be pressed together)
+    client.GetInput()->AddChordAction("DASH_RIGHT", {SDL_SCANCODE_LSHIFT, SDL_SCANCODE_D});
+    
+    std::cout << "Connecting to server at " << serverAddress << ":" << publisherPort << "/" << pullPort << std::endl;
+    
+    if (!client.ConnectToServer(serverAddress, publisherPort, pullPort)) {
+        std::cerr << "Failed to connect to server" << std::endl;
+        return 1;
+    }
+    
+    std::cout << "Client connected successfully!" << std::endl;
+    std::cout << "Client ID: " << client.GetClientId() << std::endl;
+    std::cout << "Controls:" << std::endl;
+    std::cout << "  A/D - Move left/right" << std::endl;
+    std::cout << "  SPACE - Jump" << std::endl;
+    std::cout << "  Shift+A - Dash left (chord)" << std::endl;
+    std::cout << "  Shift+D - Dash right (chord)" << std::endl;
+    std::cout << "  ESC - Exit" << std::endl;
+    std::cout << "The client will send input to server and receive game state updates" << std::endl;
+    
+    // Run the client (this will handle input, networking, and rendering)
+    client.Run();
+    
+    client.Shutdown();
+    std::cout << "Client shutdown complete" << std::endl;
+    
+    return 0;
 }

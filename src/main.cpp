@@ -10,6 +10,9 @@ int main(int argc, char *argv[]) {
   if (!engine.Initialize("Breakout Local", 1000, 1000, 1.0f)) {
     return 1;
   }
+
+  InputManager* input = engine.GetInput();
+
   engine.GetRenderSystem()->SetScalingMode(ScalingMode::PROPORTIONAL);
 
   Timeline *rootTl = engine.GetRootTimeline();

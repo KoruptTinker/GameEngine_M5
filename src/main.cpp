@@ -7,59 +7,68 @@ int main(int argc, char *argv[]) {
   (void)argv;
 
   GameEngine engine;
-  if (!engine.Initialize("Game Engine", 1800, 1000, 1.0f)) {
+  if (!engine.Initialize("Breakout Local", 1000, 1000, 1.0f)) {
     return 1;
   }
   engine.GetRenderSystem()->SetScalingMode(ScalingMode::PROPORTIONAL);
-  Timeline *halfTimeline = new Timeline(0.5, engine.GetRootTimeline());
-  Timeline *doubleTimeline = new Timeline(2.0, engine.GetRootTimeline());
-  (void)doubleTimeline; // unused for now
-  
-  // Create entities
-  TestEntity *testEntity = new TestEntity(100, 100, engine.GetRootTimeline(), engine.GetRenderer());
-  // TestEntity already enables physics in its constructor
 
-  Platform *platform1 = new Platform(300, 800, 300, 75, false, halfTimeline, engine.GetRenderer());
-  // platform1 has collision enabled but no physics (static platform)
+  Timeline *rootTl = engine.GetRootTimeline();
 
-  Platform *platform2 = new Platform(800, 650, 300, 75, true, engine.GetRootTimeline(), engine.GetRenderer());
-  // platform2 has collision and physics enabled (moving platform)
+  // Create PlayerBumper near bottom center
+  float screenWidth = 1000.0f;
+  float screenHeight = 1000.0f;
+  // Slightly smaller bumper for better feel
+  float bumperWidth = 220.0f;
+  float bumperHeight = 55.0f;
+  float bumperX = (screenWidth - bumperWidth) * 0.5f;
+  float bumperY = 900.0f;
+  PlayerBumper *bumper =
+      new PlayerBumper(bumperX, bumperY, bumperWidth, bumperHeight, rootTl,
+                       engine.GetRenderer());
+  bumper->setComponent("screenWidth", screenWidth);
+
+  // Create ball above the bumper
+  // Slightly smaller ball
+  float ballSize = 48.0f;
+  float ballX = (screenWidth - ballSize) * 0.5f;
+  float ballY = 700.0f;
+  Ball *ball = new Ball(ballX, ballY, ballSize, ballSize, rootTl,
+                        engine.GetRenderer());
+  ball->setComponent("screenWidth", screenWidth);
+  ball->setComponent("screenHeight", screenHeight);
+  // Increase initial ball velocity by 2x in both directions
+  ball->SetVelocity(300.0f, -500.0f);
+
+  // Create bricks at the top in a centered, striped pattern
+  const int rows = 6;
+  const int cols = 8;
+  // Slightly smaller bricks
+  const float brickWidth = 96.0f;
+  const float brickHeight = 32.0f;
+  const float gapX = 10.0f;
+  const float gapY = 10.0f;
+  const float totalWidth = cols * brickWidth + (cols - 1) * gapX;
+  const float startX = (screenWidth - totalWidth) * 0.5f;
+  const float startY = 100.0f;
+
+  auto *em = engine.GetEntityManager();
+
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < cols; ++c) {
+      float x = startX + c * (brickWidth + gapX);
+      float y = startY + r * (brickHeight + gapY);
+      // Alternate brick type by row for a clear stripe pattern
+      int brickType = r % 2;
+      Brick *brick =
+          new Brick(x, y, brickWidth, brickHeight, brickType, rootTl,
+                    engine.GetRenderer());
+      em->AddEntity(brick);
+    }
+  }
 
   // Add entities to the engine
-  engine.GetEntityManager()->AddEntity(testEntity);
-  engine.GetEntityManager()->AddEntity(platform1);
-  engine.GetEntityManager()->AddEntity(platform2);
-
-  SDL_Texture *entityTexture = LoadTexture(
-      engine.GetRenderer(),
-      "media/cartooncrypteque_character_skellywithahat_idleright.bmp");
-  if (entityTexture) {
-    Texture tex = {
-      .sheet = entityTexture,
-      .num_frames_x = 8,
-      .num_frames_y = 0,
-      .frame_width = 512,
-      .frame_height = 512,
-      .loop = true
-    };
-    testEntity->SetTexture(0, &tex);
-  }
-
-  SDL_Texture *platformTexture =
-      LoadTexture(engine.GetRenderer(),
-                  "media/cartooncrypteque_platform_basicground_idle.bmp");
-  if (platformTexture) {
-    Texture tex = {
-      .sheet = platformTexture,
-      .num_frames_x = 1,
-      .num_frames_y = 1,
-      .frame_width = 200,
-      .frame_height = 20,
-      .loop = true
-    };
-    platform1->SetTexture(0, &tex);
-    platform2->SetTexture(0, &tex);
-  }
+  em->AddEntity(bumper);
+  em->AddEntity(ball);
 
   engine.Run();
 

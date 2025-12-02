@@ -1,92 +1,88 @@
 #pragma once
 #include <iostream>
+#include <cmath>
 
 #include "Core/GameEngine.h"
-// #include <memory>
+#include "Core/Render.h"
+#include "Entities/Entity.h"
+#include "Math/vec2.h"
 
-class TestEntity : public Entity {
-  inline static MemoryPool* TestEntityMemoryPool = nullptr;
- public:
-  void* operator new(size_t size) {
-    if (!TestEntity::TestEntityMemoryPool)
-      TestEntity::TestEntityMemoryPool = new MemoryPool(sizeof(TestEntity), 128);
-    int sl_id = TestEntity::TestEntityMemoryPool->alloc();
+class PlayerBumper : public Entity {
+  inline static MemoryPool *MemPool = nullptr;
+
+public:
+  void *operator new(size_t size) {
+    if (!PlayerBumper::MemPool)
+      PlayerBumper::MemPool = new MemoryPool(sizeof(PlayerBumper), 16);
+    int sl_id = PlayerBumper::MemPool->alloc();
     if (sl_id == -1)
       return nullptr;
-    return TestEntity::TestEntityMemoryPool->getPtr(sl_id);
+    return PlayerBumper::MemPool->getPtr(sl_id);
   }
 
-  void operator delete(void* ptr) {
-    TestEntity::TestEntityMemoryPool->freeSlot(TestEntity::TestEntityMemoryPool->getSlot(ptr));
+  void operator delete(void *ptr) {
+    PlayerBumper::MemPool->freeSlot(PlayerBumper::MemPool->getSlot(ptr));
   }
 
-  TestEntity(float x, float y, Timeline *tl, SDL_Renderer *renderer) : Entity(x, y, 128, 128, tl) {
-    EnablePhysics(true);
+  PlayerBumper(float x, float y, float w, float h, Timeline *tl,
+               SDL_Renderer *renderer = nullptr)
+      : Entity(x, y, w, h, tl) {
+
+    entityType = "PlayerBumper";
+    // Default screen width; can be overridden via component if needed
+    setComponent("screenWidth", 1800.0f);
+    EnablePhysics(false);
     EnableCollision(false, false);
-    SetVelocity(0.0f, 0.0f);
-    SetCurrentFrame(0);
-    
-    // Initialize components
-    setComponent("lastFrameTime", static_cast<Uint32>(0));
-    setComponent("animationDelay", 200);
-    setComponent("grounded", false);
-    setComponent("wasGrounded", false);
-    setComponent("groundRef", static_cast<Entity*>(nullptr));
-    setComponent("playerInputDirection", 0); // -1 for left, 0 for idle, 1 for right
-    
-    entityType = "TestEntity";
-    SDL_Texture *entityTexture = LoadTexture(
-      renderer,
-      "media/cartooncrypteque_character_skellywithahat_idleright.bmp");
-    if (entityTexture) {
-      Texture tex = {
-        .sheet = entityTexture,
-        .num_frames_x = 8,
-        .num_frames_y = 0,
-        .frame_width = 512,
-        .frame_height = 512,
-        .loop = true
+    setComponent("lastFrameTime", Uint32(0));
+    setComponent("animationDelay", 100);
+    if (renderer) {
+      SDL_Texture *tex1 = LoadTexture(renderer, "media/bumper_1.bmp");
+      SDL_Texture *tex2 = LoadTexture(renderer, "media/bumper_2.bmp");
+      rendering.textures[0] = Texture{
+          .sheet = tex1,
+          .num_frames_x = 1,
+          .num_frames_y = 1,
+          .frame_width = 485,
+          .frame_height = 128,
+          .loop = true,
       };
-      SetTexture(0, &tex);
+      rendering.textures[1] = Texture{
+          .sheet = tex2,
+          .num_frames_x = 1,
+          .num_frames_y = 1,
+          .frame_width = 485,
+          .frame_height = 128,
+          .loop = true,
+      };
+      SetTextureState(0);
+      setComponent("textureState", 0);
     }
   }
 
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
-    (void)entitySpawner;
-    
+    // Remember the entity manager so OnActivity can find the Ball later.
+    if (entitySpawner && !hasComponent("entityManagerPtr")) {
+      setComponent("entityManagerPtr", (void *)entitySpawner);
+    }
+
     // Update animation
     Uint32 lastFrameTime = getComponent<Uint32>("lastFrameTime");
     int animationDelay = getComponent<int>("animationDelay");
-    lastFrameTime += (Uint32)(deltaTime * 1000);  // Convert to milliseconds
+    int textureState = getComponent<int>("textureState");
+    lastFrameTime += (Uint32)(deltaTime * 1000); // Convert to milliseconds
     if (lastFrameTime >= (Uint32)animationDelay) {
-      rendering.currentFrame = (rendering.currentFrame + 1) % rendering.textures[rendering.currentTextureState].num_frames_x;
+      textureState = !textureState;
+      SetTextureState(textureState);
+      setComponent("textureState", textureState);
       lastFrameTime = 0;
     }
     setComponent("lastFrameTime", lastFrameTime);
 
-    // Reset grounded state each frame (will be set by collision if on platform)
-    setComponent("grounded", false);
-    
-    // Bounce off screen edges (demonstrates entity system working) using window
-    // bounds push opposite direction
-    if (position.x <= 0) {
-      position.x = 0;
-    }
-
-    // Reset if falls off bottom (demonstrates physics working)
-    if (position.y > 1080) { // fell off bottom of screen
-      position.x = 100;
-      position.y = 100;
-      SetVelocityY(0.0f);
-      setComponent("grounded", false);
-      setComponent("groundRef", static_cast<Entity*>(nullptr));
-    }
-
-    // Handle pause toggle (only on key press, not while held)
+    // Pause functionality
     static bool pKeyWasPressed = false;
     bool pKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_P);
-    
+
     if (pKeyIsPressed && !pKeyWasPressed) {
       // Key was just pressed (not held)
       if (timeline->getState() == Timeline::State::PAUSE) {
@@ -97,186 +93,325 @@ class TestEntity : public Entity {
     }
     pKeyWasPressed = pKeyIsPressed;
 
-    // Speed up and slow down the timeline for this entity
-    static bool iKeyWasPressed = false;
-    static bool oKeyWasPressed = false;
-    static bool uKeyWasPressed = false;
-    bool iKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_I);
-    bool oKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_O);
-    bool uKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_U);
-    if (iKeyIsPressed && !iKeyWasPressed) {
-      timeline->setScale(timeline->getScale() - 0.5f);
+    // Clamp bumper so it doesn't run off the screen edges
+    float screenWidth = getComponent<float>("screenWidth");
+    if (position.x < 0.0f) {
+      position.x = 0.0f;
     }
-    if (oKeyIsPressed && !oKeyWasPressed) {
-      timeline->setScale(timeline->getScale() + 0.5f);
+    if (position.x + dimensions.x > screenWidth) {
+      position.x = screenWidth - dimensions.x;
     }
-    if (uKeyIsPressed && !uKeyWasPressed) {
-      timeline->setScale(0.5f);
-    }
-    iKeyWasPressed = iKeyIsPressed;
-    oKeyWasPressed = oKeyIsPressed;
-    uKeyWasPressed = uKeyIsPressed;
   }
 
-  void OnActivity(const std::string& actionName) override {
+  void OnActivity(const std::string &actionName) override {
     // speeds
-    constexpr float runSpeed = 200.0f;
-    
-    // Get ground reference and grounded state
-    Entity* groundRef = getComponent<Entity*>("groundRef");
-    bool grounded = getComponent<bool>("grounded");
-    SDL_Log("OnActivity: actionName: %s", actionName.c_str());
+    // 1.5x original bumper speed for snappier movement
+    constexpr float moveSpeed = 300.0f;
+
     if (actionName == "MOVE_LEFT") {
       // Move left at constant speed, ignoring platform motion
-      SetVelocityX(-runSpeed);
-      setComponent("playerInputDirection", -1);
+      SetVelocityX(-moveSpeed);
     } else if (actionName == "MOVE_RIGHT") {
       // Move right at constant speed, ignoring platform motion
-      SetVelocityX(runSpeed);
-      setComponent("playerInputDirection", 1);
-    } else if (actionName == "JUMP") {
-      // Only jump if grounded, but don't reset horizontal velocity if not grounded
-      if (grounded) {
-        SetVelocityY(-1500.0f);
-        setComponent("grounded", false);
-        setComponent("wasGrounded", false);
+      SetVelocityX(moveSpeed);
+    } else if (actionName == "LAUNCH_BALL") {
+      // Server will send this action; detach the ball from the bumper and
+      // give it an initial upward velocity if it's currently attached.
+      EntityManager *entityMgr = nullptr;
+      if (hasComponent("entityManagerPtr")) {
+        entityMgr =
+            reinterpret_cast<EntityManager *>(getComponent<void *>("entityManagerPtr"));
       }
-      // If not grounded, do nothing - preserve current horizontal velocity
-    } else if (actionName == "IDLE") {
-      // Stop horizontal movement, inherit platform velocity when grounded
-      const float carrierVX = (grounded && groundRef) ? groundRef->GetVelocityX() : 0.0f;
-      SetVelocityX(carrierVX);
-      setComponent("playerInputDirection", 0);
+      if (entityMgr) {
+        Entity *ball = nullptr;
+        for (Entity *e : entityMgr->getEntityVectorRef()) {
+          if (e && e->entityType == "Ball") {
+            ball = e;
+            break;
+          }
+        }
+        if (ball) {
+          bool attachedToBumper = false;
+          if (ball->hasComponent("attachedToBumper")) {
+            attachedToBumper = ball->getComponent<bool>("attachedToBumper");
+          }
+          if (attachedToBumper) {
+            ball->setComponent("attachedToBumper", false);
+            ball->SetVelocity(0.0f, -500.0f);
+          }
+        }
+      }
     } else {
-      // Default case - also treat as IDLE
-      const float carrierVX = (grounded && groundRef) ? groundRef->GetVelocityX() : 0.0f;
-      SetVelocityX(carrierVX);
-      setComponent("playerInputDirection", 0);
+      SetVelocityX(0);
     }
-  }
-
-  void OnCollision(Entity *other, CollisionData *collData) override {
-    if (collData->normal.y == -1.0f && collData->normal.x == 0.0f) {
-      bool wasGrounded = getComponent<bool>("wasGrounded");
-      if (!wasGrounded) {
-        setComponent("wasGrounded", true);
-      }
-      setComponent("grounded", true);
-      SetVelocityY(0.0f);
-      setComponent("groundRef", other);
-    } else if (collData->normal.x != 0.0f && other->entityType != "ScrollBoundary") {
-      // Only stop horizontal movement for non-ScrollBoundary collisions
-      SetVelocityX(0.0f);
-    }
-  }
-
-  // Get current frame for rendering
-  bool GetSourceRect(SDL_FRect &out) const override {
-    out = SampleTextureAt(rendering.currentFrame, 0);
-    return true;
   }
 };
-class Platform : public Entity {
- inline static MemoryPool* PlatformMemoryPool = nullptr;
- public:
-  void* operator new(size_t size) {
-    if (!Platform::PlatformMemoryPool)
-      Platform::PlatformMemoryPool = new MemoryPool(sizeof(TestEntity), 128);
-    int sl_id = Platform::PlatformMemoryPool->alloc();
+
+class Ball : public Entity {
+
+  inline static MemoryPool *MemPool = nullptr;
+
+public:
+  void *operator new(size_t size) {
+    if (!Ball::MemPool)
+      Ball::MemPool = new MemoryPool(sizeof(Ball), 16);
+    int sl_id = Ball::MemPool->alloc();
     if (sl_id == -1)
       return nullptr;
-    return Platform::PlatformMemoryPool->getPtr(sl_id);
+    return Ball::MemPool->getPtr(sl_id);
   }
 
-  void operator delete(void* ptr) {
-    Platform::PlatformMemoryPool->freeSlot(Platform::PlatformMemoryPool->getSlot(ptr));
+  void operator delete(void *ptr) {
+    Ball::MemPool->freeSlot(Ball::MemPool->getSlot(ptr));
   }
 
-  Platform(float x, float y, float w = 200, float h = 20, bool moving = false, Timeline *tl = nullptr, SDL_Renderer *renderer = nullptr)
+  Ball(float x, float y, float w, float h, Timeline *tl,
+       SDL_Renderer *renderer = nullptr)
       : Entity(x, y, w, h, tl) {
-    entityType = "Platform";
-    EnableCollision(false, true);  // not a ghost, is kinematic
-    if (moving) {
-      EnablePhysics(false);  // Enable physics but no gravity
-      SetVelocity(-100.0f, 0.0f);
-    }
+    EnablePhysics(false); 
+    EnableCollision(false, false); 
+
+    entityType = "Ball";
+    setComponent("screenWidth", 1800.0f);
+    setComponent("screenHeight", 1000.0f);
     if (renderer) {
-      SDL_Texture *platformTexture =
-      LoadTexture(renderer,
-                  "media/cartooncrypteque_platform_basicground_idle.bmp");
-      if (platformTexture) {
-        rendering.textures[0] = {
-          .sheet = platformTexture,
+      SDL_Texture *tex = LoadTexture(renderer, "media/ball.bmp");
+      rendering.textures[0] = Texture{
+          .sheet = tex,
           .num_frames_x = 1,
           .num_frames_y = 1,
-          .frame_width = 200,
-          .frame_height = 20,
-          .loop = true
-        };
+          .frame_width = 128,
+          .frame_height = 128,
+          .loop = true,
+      };
+    }
+  }
+
+  void Update(float deltaTime, InputManager *input,
+              EntityManager *entitySpawner) override {
+    (void)deltaTime;
+    (void)input;
+    
+    bool attachedToBumper = false;
+    if (hasComponent("attachedToBumper")) {
+      attachedToBumper = getComponent<bool>("attachedToBumper");
+    }
+
+    Entity *bumper = nullptr;
+    if (entitySpawner) {
+      for (Entity *e : entitySpawner->getEntityVectorRef()) {
+        if (e && e->entityType == "PlayerBumper") {
+          bumper = e;
+          break;
+        }
       }
     }
-  }
 
-  void Update(float dt, InputManager *input,
-              EntityManager *entitySpawner) override {
-    (void)input;
-    (void)entitySpawner;  
-    if(!physicsEnabled) return;
-    // Horizontal-only motion for the moving platform
-    position = add(position, mul(dt, {GetVelocityX(), GetVelocityY()}));
-    if (position.x < 0) {
-      position.x = 0;
-      LeftRightOccilate(this);
-    } else if (position.x + dimensions.x > 1920) {
-      position.x = 1920 - dimensions.x;
-      LeftRightOccilate(this);
+    // If the ball is attached to the bumper, keep it riding on top of the bumper
+    // and don't apply any wall/boundary logic yet.
+    if (attachedToBumper && bumper) {
+      position.x =
+          bumper->position.x + (bumper->dimensions.x - dimensions.x) * 0.5f;
+      position.y = bumper->position.y - dimensions.y;
+      SetVelocity(0.0f, 0.0f);
+      return;
+    }
+    
+    float screenWidth = getComponent<float>("screenWidth");
+    float screenHeight = getComponent<float>("screenHeight");
+    
+    bool hitLeftBoundary = position.x <= 0;
+    bool hitRightBoundary = position.x + dimensions.x >= screenWidth;
+    bool hitTopBoundary = position.y <= 0;
+    bool hitBottomBoundary = position.y + dimensions.y >= screenHeight;
+
+    if (hitLeftBoundary || hitRightBoundary) {
+      float currentVelX = GetVelocityX();
+      SetVelocityX(-currentVelX);
+      if (hitLeftBoundary) {
+        position.x = 0;
+      } else {
+        position.x = screenWidth - dimensions.x;
+      }
+    }
+    
+    if (hitTopBoundary) {
+      float currentVelY = GetVelocityY();
+      SetVelocityY(-currentVelY);
+      position.y = 0;
+    }
+
+    // If the ball hits the bottom of the screen, reset it to ride on the bumper
+    // and wait for a new launch.
+    if (hitBottomBoundary) {
+      if (bumper) {
+        position.x =
+            bumper->position.x + (bumper->dimensions.x - dimensions.x) * 0.5f;
+        position.y = bumper->position.y - dimensions.y;
+      } else {
+        position.x = (screenWidth - dimensions.x) * 0.5f;
+        position.y = (screenHeight - dimensions.y) * 0.5f;
+      }
+
+      SetVelocityY(0.0f);
+      SetVelocityX(0.0f);
+      setComponent("attachedToBumper", true);
     }
   }
 
-  void LeftRightOccilate(Entity *other) {
-    (void)other;
-    // multiply the xvelocity by -1 to reverse direction
-    SetVelocityX(-GetVelocityX());
+  void OnCollision(Entity *other, CollisionData *data) override {
+    if (!other || !data) return;
+
+    // Handle bumper collision with angle-based bounce
+    if (other->entityType == "PlayerBumper") {
+      // Calculate the offset: distance between ball's center and bumper's center
+      float ballCenterX = position.x + dimensions.x * 0.5f;
+      float ballCenterY = position.y + dimensions.y * 0.5f;
+      float bumperCenterX = other->position.x + other->dimensions.x * 0.5f;
+      float bumperCenterY = other->position.y + other->dimensions.y * 0.5f;
+      
+      float offset = ballCenterX - bumperCenterX;
+      
+      float halfBumperWidth = other->dimensions.x * 0.5f;
+      float normalizedOffset = offset / halfBumperWidth;
+      
+      if (normalizedOffset < -1.0f) normalizedOffset = -1.0f;
+      if (normalizedOffset > 1.0f) normalizedOffset = 1.0f;
+      
+      constexpr float maxBounceAngle = 75.0f;
+      float bounceAngle = normalizedOffset * maxBounceAngle;
+      
+      float angleRad = bounceAngle * M_PI / 180.0f;
+      
+      float currentVelX = GetVelocityX();
+      float currentVelY = GetVelocityY();
+      float currentSpeed = sqrtf(currentVelX * currentVelX + currentVelY * currentVelY);
+      
+      if (currentSpeed < 1.0f) {
+        currentSpeed = 300.0f; 
+      }
+      float newVelX = currentSpeed * sinf(angleRad);
+      float newVelY = -currentSpeed * cosf(angleRad); 
+      
+      SetVelocityX(newVelX);
+      SetVelocityY(newVelY);
+    } else if(other->entityType == "Brick_1" || other->entityType == "Brick_2") {
+      if(other->getComponent<bool>("collidedAlready")) {
+        return;
+      }
+      if(data->normal.y != 0) {
+        SetVelocityY(-GetVelocityY());
+      } else {
+        SetVelocityX(-GetVelocityX());
+      }
+      other->setComponent("collidedAlready", true);
+    }
   }
 };
 
-class ScrollBoundary : public Entity {
- inline static MemoryPool* ScrollBoundaryMemoryPool = nullptr;
- public:
-  void* operator new(size_t size) {
-    if (!ScrollBoundary::ScrollBoundaryMemoryPool)
-      ScrollBoundary::ScrollBoundaryMemoryPool = new MemoryPool(sizeof(TestEntity), 128);
-    int sl_id = ScrollBoundary::ScrollBoundaryMemoryPool->alloc();
+class Brick : public Entity {
+  inline static MemoryPool *MemPool = nullptr;
+
+public:
+  void *operator new(size_t size) {
+    if (!Brick::MemPool)
+      Brick::MemPool = new MemoryPool(sizeof(Brick), 128);
+    int sl_id = Brick::MemPool->alloc();
     if (sl_id == -1)
       return nullptr;
-    return ScrollBoundary::ScrollBoundaryMemoryPool->getPtr(sl_id);
+    return Brick::MemPool->getPtr(sl_id);
   }
 
-  void operator delete(void* ptr) {
-    ScrollBoundary::ScrollBoundaryMemoryPool->freeSlot(ScrollBoundary::ScrollBoundaryMemoryPool->getSlot(ptr));
+  void operator delete(void *ptr) {
+    Brick::MemPool->freeSlot(Brick::MemPool->getSlot(ptr));
   }
 
-  ScrollBoundary(float x, float y, float w, float h, Timeline *tl = nullptr, SDL_Renderer *renderer = nullptr, float maxOffsetX = 0.0f)
+  Brick(float x, float y, float w, float h, int brickType, Timeline *tl,
+        SDL_Renderer *renderer = nullptr)
       : Entity(x, y, w, h, tl) {
-    entityType = "ScrollBoundary";
-    EnableCollision(true, false);
-    setComponent("enabledScroll", false);
-    SetVisible(false);
-    setComponent("maxOffsetX", maxOffsetX);
-  }
-
-  void OnCollision(Entity *other, CollisionData *collData) override {
-    if(collData->normal.x != 0.0f && other->entityType == "TestEntity" && other->GetOffSetX() >= getComponent<float>("maxOffsetX")) {
-      std::cout<<"OnCollision: enabledScroll: "<<getComponent<bool>("enabledScroll")<<std::endl;
-      other->SetOffSetX(other->GetOffSetX() - 900.0f);
-      setComponent("enabledScroll", true);
+    EnableCollision(false, true);
+    setComponent("destroyed", false);
+    // 0 = intact, 1 = broken
+    setComponent("state", 0);
+    setComponent("brokenCooldown", 0.0f);
+    setComponent("collidedAlready", false);
+    entityType = "Brick";
+    if (renderer) {
+      SDL_Texture *tex;
+      SDL_Texture *tex_broken;
+      switch (brickType) {
+      case 0:
+        entityType = "Brick_1";
+        tex = LoadTexture(renderer, "media/brick_1.bmp");
+        tex_broken = LoadTexture(renderer, "media/brick_1_broken.bmp");
+        break;
+      case 1:
+        entityType = "Brick_2";
+        tex = LoadTexture(renderer, "media/brick_2.bmp");
+        tex_broken = LoadTexture(renderer, "media/brick_2_broken.bmp");
+        break;
+      default:
+        tex = LoadTexture(renderer, "media/brick_1.bmp");
+        tex_broken = LoadTexture(renderer, "media/brick_1_broken.bmp");
+        break;
+      }
+      rendering.textures[0] = Texture{
+          .sheet = tex,
+          .num_frames_x = 1,
+          .num_frames_y = 1,
+          .frame_width = 384,
+          .frame_height = 128,
+          .loop = true,
+      };
+      rendering.textures[1] = Texture{
+          .sheet = tex_broken,
+          .num_frames_x = 1,
+          .num_frames_y = 1,
+          .frame_width = 384,
+          .frame_height = 128,
+          .loop = true,
+      };
     }
   }
 
-  void Update(float dt, InputManager *input,
+  void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
     (void)input;
-    (void)dt;
+    // Decrease cooldown timer if active
+    float cooldown = getComponent<float>("brokenCooldown");
+    if (cooldown > 0.0f) {
+      cooldown -= deltaTime;
+      if (cooldown < 0.0f) {
+        cooldown = 0.0f;
+        SetGhostEntity(false);
+        setComponent("collidedAlready", false);
+      }
+      setComponent("brokenCooldown", cooldown);
+    }
+
+    if (getComponent<bool>("destroyed") && entitySpawner) {
+      entitySpawner->RemoveEntity(this);
+    }
   }
 
+  void OnCollision(Entity *other, CollisionData *data) override {
+    if (!other || !data) return;
+
+    if (other->entityType != "Ball") return;
+
+    int state = getComponent<int>("state");
+    float cooldown = getComponent<float>("brokenCooldown");
+
+    if (state == 0) {
+      setComponent("state", 1);
+      SetTextureState(1);
+      SetGhostEntity(true);
+      setComponent("brokenCooldown", 0.2f); 
+      setComponent("collidedAlready", true);
+    } else if (cooldown == 0.0f) {
+      setComponent("destroyed", true);
+      SetGhostEntity(true);
+      setComponent("collidedAlready", true);
+    }
+  }
 };

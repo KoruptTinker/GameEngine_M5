@@ -12,12 +12,13 @@ The **Game Engine Construction Project** is designed to provide comprehensive, h
 
 ## 🎮 Games Included
 
-This engine includes two playable demo games:
+This engine includes three playable demo games:
 
 | Game | Description |
 |------|-------------|
 | **🚀 Space Invaders** | Classic arcade shooter - destroy waves of alien invaders! |
 | **🧱 Brick Breaker** | Break all the bricks using a bouncing ball and paddle! |
+| **🦘 Platformer** | Jump between static and moving platforms in this challenging platformer! |
 
 ---
 
@@ -65,6 +66,8 @@ The following executables are generated:
 | `BrickClient` | Brick Breaker game client |
 | `SpaceServer` | Space Invaders game server |
 | `SpaceClient` | Space Invaders game client |
+| `PlatformServer` | Platformer game server |
+| `PlatformClient` | Platformer game client |
 
 ---
 
@@ -112,6 +115,26 @@ Both games use a **client-server architecture**. You must start the server first
 ./build/SpaceClient
 ```
 
+### 🦘 Platformer
+
+**Step 1: Start the Server**
+```bash
+# Windows
+.\build\Release\PlatformServer.exe
+
+# Mac/Linux
+./build/PlatformServer
+```
+
+**Step 2: Start the Client** (in a new terminal)
+```bash
+# Windows
+.\build\Release\PlatformClient.exe
+
+# Mac/Linux
+./build/PlatformClient
+```
+
 > [!TIP]
 > **Multiplayer:** You can connect multiple clients to the same server! Each client gets their own player.
 
@@ -144,6 +167,21 @@ Both games use a **client-server architecture**. You must start the server first
 | `ESC` | Exit Game |
 
 **Objective:** Break all the bricks using the bouncing ball. Don't let the ball fall! You have 3 lives (hearts).
+
+### Platformer
+
+| Key | Action |
+|-----|--------|
+| `A` / `←` | Move Left |
+| `D` / `→` | Move Right |
+| `Space` | Jump |
+| `P` | Pause/Unpause Timeline |
+| `I` | Slow Down Timeline |
+| `O` | Speed Up Timeline |
+| `U` | Reset Timeline Speed |
+| `ESC` | Exit Game |
+
+**Objective:** Navigate between static and moving platforms. Don't fall off! If you fall below the screen, you'll respawn at the starting position. Jump on moving platforms to reach higher areas.
 
 ---
 
@@ -190,6 +228,7 @@ GameEngine_M5/
 │   └── Timeline/           # Time management
 ├── demo_brickbreaker/      # Brick Breaker game
 ├── demo_space/             # Space Invaders game
+├── game_cs/                # Platformer game
 ├── media/                  # Game assets (sprites, images)
 ├── third_party/            # External libraries (SDL3, ZeroMQ)
 └── docs/                   # Project documentation

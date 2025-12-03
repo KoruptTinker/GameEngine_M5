@@ -7,6 +7,10 @@
 #include "Entities/Entity.h"
 #include "Math/vec2.h"
 
+// Forward declarations
+class Heart;
+class Brick;
+
 class PlayerBumper : public Entity {
   inline static MemoryPool *MemPool = nullptr;
 
@@ -29,13 +33,11 @@ public:
       : Entity(x, y, w, h, tl) {
 
     entityType = "PlayerBumper";
-    // Default screen width; can be overridden via component if needed
     setComponent("screenWidth", 1800.0f);
     EnablePhysics(false);
     EnableCollision(false, false);
     setComponent("lastFrameTime", Uint32(0));
     setComponent("animationDelay", 100);
-    // Track if dash actions were processed this frame
     setComponent("dashLeftActive", false);
     setComponent("dashRightActive", false);
     if (renderer) {
@@ -64,20 +66,17 @@ public:
 
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
-    // Reset dash tracking flags at the start of each frame
     setComponent("dashLeftActive", false);
     setComponent("dashRightActive", false);
 
-    // Remember the entity manager so OnActivity can find the Ball later.
     if (entitySpawner && !hasComponent("entityManagerPtr")) {
       setComponent("entityManagerPtr", (void *)entitySpawner);
     }
 
-    // Update animation
     Uint32 lastFrameTime = getComponent<Uint32>("lastFrameTime");
     int animationDelay = getComponent<int>("animationDelay");
     int textureState = getComponent<int>("textureState");
-    lastFrameTime += (Uint32)(deltaTime * 1000); // Convert to milliseconds
+    lastFrameTime += (Uint32)(deltaTime * 1000); 
     if (lastFrameTime >= (Uint32)animationDelay) {
       textureState = !textureState;
       SetTextureState(textureState);
@@ -86,12 +85,10 @@ public:
     }
     setComponent("lastFrameTime", lastFrameTime);
 
-    // Pause functionality
     static bool pKeyWasPressed = false;
     bool pKeyIsPressed = input->IsKeyPressed(SDL_SCANCODE_P);
 
     if (pKeyIsPressed && !pKeyWasPressed) {
-      // Key was just pressed (not held)
       if (timeline->getState() == Timeline::State::PAUSE) {
         timeline->setState(Timeline::State::RUN);
       } else {
@@ -100,7 +97,6 @@ public:
     }
     pKeyWasPressed = pKeyIsPressed;
 
-    // Clamp bumper so it doesn't run off the screen edges
     float screenWidth = getComponent<float>("screenWidth");
     if (position.x < 0.0f) {
       position.x = 0.0f;
@@ -111,19 +107,15 @@ public:
   }
 
   void OnActivity(const std::string &actionName) override {
-    // speeds
-    // 1.5x original bumper speed for snappier movement
     constexpr float moveSpeed = 300.0f;
     constexpr float dashSpeed = 600.0f;
 
     if (actionName == "MOVE_LEFT") {
-      // Only move left if dash left was not processed this frame
       bool dashLeftActive = getComponent<bool>("dashLeftActive");
       if (!dashLeftActive) {
         SetVelocityX(-moveSpeed);
       }
     } else if (actionName == "MOVE_RIGHT") {
-      // Only move right if dash right was not processed this frame
       bool dashRightActive = getComponent<bool>("dashRightActive");
       if (!dashRightActive) {
         SetVelocityX(moveSpeed);
@@ -135,8 +127,6 @@ public:
       SetVelocityX(dashSpeed);
       setComponent("dashRightActive", true);
     } else if (actionName == "LAUNCH_BALL") {
-      // Server will send this action; detach the ball from the bumper and
-      // give it an initial upward velocity if it's currently attached.
       EntityManager *entityMgr = nullptr;
       if (hasComponent("entityManagerPtr")) {
         entityMgr = reinterpret_cast<EntityManager *>(
@@ -196,6 +186,7 @@ public:
     setComponent("screenWidth", 1800.0f);
     setComponent("screenHeight", 1000.0f);
     setComponent("justCollided", false);
+    setComponent("rendererPtr", (void *)renderer);
     if (renderer) {
       SDL_Texture *tex = LoadTexture(renderer, "media/ball.bmp");
       rendering.textures[0] = Texture{
@@ -208,6 +199,8 @@ public:
       };
     }
   }
+
+  void ResetGame(EntityManager *entitySpawner);
 
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
@@ -229,8 +222,6 @@ public:
       }
     }
 
-    // If the ball is attached to the bumper, keep it riding on top of the
-    // bumper and don't apply any wall/boundary logic yet.
     if (attachedToBumper && bumper) {
       position.x =
           bumper->position.x + (bumper->dimensions.x - dimensions.x) * 0.5f;
@@ -263,9 +254,28 @@ public:
       position.y = 0;
     }
 
-    // If the ball hits the bottom of the screen, reset it to ride on the bumper
-    // and wait for a new launch.
     if (hitBottomBoundary) {
+      bool gameOver = false;
+      if (entitySpawner) {
+        Entity *heartToRemove = nullptr;
+        int heartCount = 0;
+        for (Entity *e : entitySpawner->getEntityVectorRef()) {
+          if (e && e->entityType == "Heart" &&
+              !e->getComponent<bool>("destroyed")) {
+            heartToRemove = e;
+            heartCount++;
+          }
+        }
+        if (heartToRemove) {
+          heartToRemove->setComponent("destroyed", true);
+          heartCount--;
+        }
+        if (heartCount <= 0) {
+          gameOver = true;
+          ResetGame(entitySpawner);
+        }
+      }
+
       if (bumper) {
         position.x =
             bumper->position.x + (bumper->dimensions.x - dimensions.x) * 0.5f;
@@ -285,10 +295,7 @@ public:
     if (!other || !data)
       return;
 
-    // Handle bumper collision with angle-based bounce
     if (other->entityType == "PlayerBumper") {
-      // Calculate the offset: distance between ball's center and bumper's
-      // center
       float ballCenterX = position.x + dimensions.x * 0.5f;
       float ballCenterY = position.y + dimensions.y * 0.5f;
       float bumperCenterX = other->position.x + other->dimensions.x * 0.5f;
@@ -362,7 +369,6 @@ public:
       : Entity(x, y, w, h, tl) {
     EnableCollision(false, true);
     setComponent("destroyed", false);
-    // 0 = intact, 1 = broken
     setComponent("state", 0);
     setComponent("brokenCooldown", 0.0f);
     setComponent("collidedAlready", false);
@@ -408,7 +414,6 @@ public:
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
     (void)input;
-    // Decrease cooldown timer if active
     float cooldown = getComponent<float>("brokenCooldown");
     if (cooldown > 0.0f) {
       cooldown -= deltaTime;
@@ -441,10 +446,114 @@ public:
       SetGhostEntity(true);
       setComponent("brokenCooldown", 0.2f);
       setComponent("collidedAlready", true);
-    } else if (cooldown == 0.0f) {
+    } else     if (cooldown == 0.0f) {
       setComponent("destroyed", true);
       SetGhostEntity(true);
       setComponent("collidedAlready", true);
     }
   }
 };
+
+class Heart : public Entity {
+  inline static MemoryPool *MemPool = nullptr;
+
+public:
+  void *operator new(size_t size) {
+    if (!Heart::MemPool)
+      Heart::MemPool = new MemoryPool(sizeof(Heart), 16);
+    int sl_id = Heart::MemPool->alloc();
+    if (sl_id == -1)
+      return nullptr;
+    return Heart::MemPool->getPtr(sl_id);
+  }
+
+  void operator delete(void *ptr) {
+    Heart::MemPool->freeSlot(Heart::MemPool->getSlot(ptr));
+  }
+
+  Heart(float x, float y, float w, float h, Timeline *tl,
+        SDL_Renderer *renderer = nullptr)
+      : Entity(x, y, w, h, tl) {
+
+    entityType = "Heart";
+    EnablePhysics(false);
+    EnableCollision(false, false);
+    setComponent("destroyed", false);
+
+    if (renderer) {
+      SDL_Texture *tex = LoadTexture(renderer, "media/heart.bmp");
+      rendering.textures[0] = Texture{
+          .sheet = tex,
+          .num_frames_x = 1,
+          .num_frames_y = 1,
+          .frame_width = 32,
+          .frame_height = 32,
+          .loop = true,
+      };
+    }
+  }
+
+  void Update(float deltaTime, InputManager *input,
+              EntityManager *entitySpawner) override {
+    (void)deltaTime;
+    (void)input;
+
+    if (getComponent<bool>("destroyed") && entitySpawner) {
+      entitySpawner->RemoveEntity(this);
+    }
+  }
+};
+
+inline void Ball::ResetGame(EntityManager *entitySpawner) {
+  SDL_Renderer *renderer = nullptr;
+  if (hasComponent("rendererPtr")) {
+    renderer = reinterpret_cast<SDL_Renderer *>(
+        getComponent<void *>("rendererPtr"));
+  }
+
+  // Remove all existing bricks
+  std::vector<Entity *> bricksToRemove;
+  for (Entity *e : entitySpawner->getEntityVectorRef()) {
+    if (e && (e->entityType == "Brick_1" || e->entityType == "Brick_2")) {
+      bricksToRemove.push_back(e);
+    }
+  }
+  for (Entity *brick : bricksToRemove) {
+    entitySpawner->RemoveEntity(brick);
+  }
+
+  // Create new hearts (3 hearts in top left corner)
+  const float heartSize = 32.0f;
+  const float heartGap = 10.0f;
+  const float heartStartX = 20.0f;
+  const float heartStartY = 20.0f;
+
+  for (int i = 0; i < 3; ++i) {
+    float x = heartStartX + i * (heartSize + heartGap);
+    Heart *heart =
+        new Heart(x, heartStartY, heartSize, heartSize, timeline, renderer);
+    entitySpawner->AddEntity(heart);
+  }
+
+  const int rows = 6;
+  const int cols = 8;
+  const float brickWidth = 96.0f;
+  const float brickHeight = 32.0f;
+  const float gapX = 15.0f;
+  const float gapY = 15.0f;
+  float screenWidth = getComponent<float>("screenWidth");
+  const float totalWidth = cols * brickWidth + (cols - 1) * gapX;
+  const float startX = (screenWidth - totalWidth) * 0.5f;
+  const float startY = 100.0f;
+
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < cols; ++c) {
+      float x = startX + c * (brickWidth + gapX);
+      float y = startY + r * (brickHeight + gapY);
+      int brickType = (r + c) % 2;
+      Brick *brick =
+          new Brick(x, y, brickWidth, brickHeight, brickType, timeline, renderer);
+      entitySpawner->AddEntity(brick);
+    }
+  }
+}

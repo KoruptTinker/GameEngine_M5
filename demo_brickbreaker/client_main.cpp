@@ -9,13 +9,11 @@ int main() {
 
   GameClient client;
 
-  // Initialize the client window to match the game resolution
   if (!client.Initialize("Breakout Client", 1000, 1000, 1.0f)) {
     std::cerr << "Failed to initialize client" << std::endl;
     return 1;
   }
 
-  // Register entity factory functions for this game
   client.RegisterEntity("PlayerBumper", [&client]() -> Entity * {
     return new PlayerBumper(0, 0, 300, 75, client.GetRootTimeline(),
                             client.GetRenderer());
@@ -25,26 +23,26 @@ int main() {
                     client.GetRenderer());
   });
   client.RegisterEntity("Brick_1", [&client]() -> Entity * {
-    // brickType will be overwritten by network state; default to 0
     return new Brick(0, 0, 384, 128, 0, client.GetRootTimeline(),
                      client.GetRenderer());
   });
 
   client.RegisterEntity("Brick_2", [&client]() -> Entity * {
-    // brickType will be overwritten by network state; default to 0
     return new Brick(0, 0, 384, 128, 1, client.GetRootTimeline(),
                      client.GetRenderer());
   });
 
-  // Connect to the server (assuming server is running on localhost)
+  client.RegisterEntity("Heart", [&client]() -> Entity * {
+    return new Heart(0, 0, 32, 32, client.GetRootTimeline(),
+                     client.GetRenderer());
+  });
+
   std::string serverAddress = "localhost";
   int publisherPort = 5555;
   int pullPort = 5556;
 
-  // Map input actions for controlling the bumper
   client.GetInput()->AddAction("MOVE_LEFT", SDL_SCANCODE_A);
   client.GetInput()->AddAction("MOVE_RIGHT", SDL_SCANCODE_D);
-  // Space bar will request a ball launch from the server.
   client.GetInput()->AddAction("LAUNCH_BALL", SDL_SCANCODE_SPACE);
   client.GetInput()->AddChordAction("DASH_LEFT",
                                     {SDL_SCANCODE_LSHIFT, SDL_SCANCODE_A});

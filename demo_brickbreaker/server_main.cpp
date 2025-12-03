@@ -63,6 +63,24 @@ int main() {
     server.GetEntityManager()->AddEntity(ball);
   }
 
+  // Create hearts (3 hearts in top left corner)
+  {
+    auto *em = server.GetEntityManager();
+    SDL_Renderer *renderer = server.GetRenderer();
+    Timeline *tl = server.GetRootTimeline();
+
+    const float heartSize = 32.0f;
+    const float heartGap = 10.0f;
+    const float startX = 20.0f;
+    const float startY = 20.0f;
+
+    for (int i = 0; i < 3; ++i) {
+      float x = startX + i * (heartSize + heartGap);
+      Heart *heart = new Heart(x, startY, heartSize, heartSize, tl, renderer);
+      em->AddEntity(heart);
+    }
+  }
+
   // Create simple grid of bricks
   {
     auto *em = server.GetEntityManager();

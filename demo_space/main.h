@@ -57,7 +57,6 @@ public:
 
   void Update(float deltaTime, InputManager *input,
               EntityManager *entitySpawner) override {
-    )
     bool shouldDelete = false;
     if (hasComponent("markedForDeletion")) {
       shouldDelete = getComponent<bool>("markedForDeletion");

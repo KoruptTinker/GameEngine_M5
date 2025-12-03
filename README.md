@@ -10,21 +10,190 @@ The **Game Engine Construction Project** is designed to provide comprehensive, h
 
 ---
 
-## Installation
+## 🎮 Games Included
+
+This engine includes two playable demo games:
+
+| Game | Description |
+|------|-------------|
+| **🚀 Space Invaders** | Classic arcade shooter - destroy waves of alien invaders! |
+| **🧱 Brick Breaker** | Break all the bricks using a bouncing ball and paddle! |
+
+---
+
+## 📦 Installation
+
+### Prerequisites
+- **CMake** 3.16 or higher
+- **C++20** compatible compiler (VS 2022 on Windows, Clang/GCC on Mac/Linux)
+- **Git** (for cloning with submodules)
+
+### Clone & Build
+
 ```bash
+# Clone the repository with all submodules
 git clone https://github.com/TaylorBrown96/CSC581_GameEngine.git --recursive
-cd .\CSC581_GameEngine\
+cd CSC581_GameEngine
+
+# Configure and build
 cmake -S . -B build
 cmake --build build --config Release
-.\build\Release\GameEngine.exe
 ```
 
 > [!NOTE]  
-> Run this command after you clone the repo and it was not the main branch:  
-> `git submodule update --init --recursive`
-> ### Or
-> Run this command after you downloaded a zip and extracted
-> `git clone https://github.com/libsdl-org/SDL.git third_party/sdl`
+> **If submodules are missing** (e.g., you switched branches or downloaded a zip):
+> ```bash
+> git submodule update --init --recursive
+> ```
+> 
+> **Or manually clone SDL:**
+> ```bash
+> git clone https://github.com/libsdl-org/SDL.git third_party/sdl
+> ```
+
+### Build Output
+
+After building, the executables will be located in:
+- **Windows:** `build/Release/`
+- **Mac/Linux:** `build/`
+
+The following executables are generated:
+
+| Executable | Description |
+|------------|-------------|
+| `BrickServer` | Brick Breaker game server |
+| `BrickClient` | Brick Breaker game client |
+| `SpaceServer` | Space Invaders game server |
+| `SpaceClient` | Space Invaders game client |
+
+---
+
+## 🚀 Launching the Games
+
+Both games use a **client-server architecture**. You must start the server first, then connect one or more clients.
+
+### 🧱 Brick Breaker
+
+**Step 1: Start the Server**
+```bash
+# Windows
+.\build\Release\BrickServer.exe
+
+# Mac/Linux
+./build/BrickServer
+```
+
+**Step 2: Start the Client** (in a new terminal)
+```bash
+# Windows
+.\build\Release\BrickClient.exe
+
+# Mac/Linux
+./build/BrickClient
+```
+
+### 🚀 Space Invaders
+
+**Step 1: Start the Server**
+```bash
+# Windows
+.\build\Release\SpaceServer.exe
+
+# Mac/Linux
+./build/SpaceServer
+```
+
+**Step 2: Start the Client** (in a new terminal)
+```bash
+# Windows
+.\build\Release\SpaceClient.exe
+
+# Mac/Linux
+./build/SpaceClient
+```
+
+> [!TIP]
+> **Multiplayer:** You can connect multiple clients to the same server! Each client gets their own player.
+
+---
+
+## 🎮 Controls
+
+### Space Invaders
+
+| Key | Action |
+|-----|--------|
+| `A` | Move Left |
+| `D` | Move Right |
+| `Space` | Shoot |
+| `Shift + A` | Dash Left |
+| `Shift + D` | Dash Right |
+| `ESC` | Exit Game |
+
+**Objective:** Destroy all the invaders before they reach you! You have 3 lives (hearts).
+
+### Brick Breaker
+
+| Key | Action |
+|-----|--------|
+| `A` | Move Paddle Left |
+| `D` | Move Paddle Right |
+| `Space` | Launch Ball |
+| `Shift + A` | Dash Left |
+| `Shift + D` | Dash Right |
+| `ESC` | Exit Game |
+
+**Objective:** Break all the bricks using the bouncing ball. Don't let the ball fall! You have 3 lives (hearts).
+
+---
+
+## 🔧 Network Configuration
+
+Both games use **ZeroMQ** for networking on these default ports:
+
+| Port | Purpose |
+|------|---------|
+| `5555` | Publisher (Server → Clients) |
+| `5556` | Pull Socket (Clients → Server) |
+
+The client connects to `localhost` by default. To connect to a remote server, modify the `serverAddress` in the respective `client_main.cpp` file.
+
+---
+
+## 🛠️ Key Engine Features
+
+- **Entity-Component System** – Flexible game object architecture
+- **Client-Server Networking** – ZeroMQ-powered multiplayer support
+- **Physics & Collision System** – Built-in physics and collision detection
+- **Event System** – Decoupled event-driven architecture
+- **Replay System** – Record and playback game sessions
+- **Job System** – Multithreaded task execution
+- **Memory Pool** – Efficient memory management
+- **Timeline System** – Game time management with pause/speed control
+
+---
+
+## 📁 Project Structure
+
+```
+GameEngine_M5/
+├── src/                    # Core engine source code
+│   ├── Core/               # GameEngine, Render, JobSystem
+│   ├── Entities/           # Entity management
+│   ├── Events/             # Event system
+│   ├── Collision/          # Collision detection
+│   ├── Physics/            # Physics simulation
+│   ├── Input/              # Input handling
+│   ├── Networking/         # Client/Server networking
+│   ├── Replay/             # Replay recording/playback
+│   ├── Memory/             # Memory pool
+│   └── Timeline/           # Time management
+├── demo_brickbreaker/      # Brick Breaker game
+├── demo_space/             # Space Invaders game
+├── media/                  # Game assets (sprites, images)
+├── third_party/            # External libraries (SDL3, ZeroMQ)
+└── docs/                   # Project documentation
+```
 
 ---
 
@@ -115,6 +284,6 @@ Each milestone requires:
 - Include code comments and milestone documentation as part of deliverables  
 
 ### 8. Academic Integrity
-- Follow **University’s Academic Integrity Policy**  
+- Follow **University's Academic Integrity Policy**  
 - No plagiarism or misuse of assets/libraries  
 - Properly cite external resources  

@@ -4,6 +4,10 @@
 #include "Core/Render.h"
 #include <cstdlib>
 
+// Forward declarations
+class Heart;
+class Invader;
+
 class Bullet : public Entity {
 
   inline static MemoryPool *MemPool = nullptr;
@@ -567,6 +571,28 @@ public:
     }
 
     if (markedForDeath) {
+      // Remove one heart (player loses a life)
+      bool gameOver = false;
+      if (entitySpawner) {
+        Entity *heartToRemove = nullptr;
+        int heartCount = 0;
+        for (Entity *e : entitySpawner->getEntityVectorRef()) {
+          if (e && e->entityType == "Heart" &&
+              !e->getComponent<bool>("destroyed")) {
+            heartToRemove = e;
+            heartCount++;
+          }
+        }
+        if (heartToRemove) {
+          heartToRemove->setComponent("destroyed", true);
+          heartCount--;
+        }
+        if (heartCount <= 0) {
+          gameOver = true;
+          ResetGame(entitySpawner);
+        }
+      }
+
       // Respawn player at initial position
       float initialX = getComponent<float>("initialX");
       float initialY = getComponent<float>("initialY");
@@ -684,6 +710,8 @@ public:
     }
   }
 
+  void ResetGame(EntityManager *entitySpawner);
+
   void OnActivity(const std::string &actionName) override {
     constexpr float moveSpeed = 300.0f;
     constexpr float dashSpeed = 600.0f;
@@ -703,8 +731,6 @@ public:
       SetVelocityX(dashSpeed);
       setComponent("dashRightActive", true);
     } else if (actionName == "SHOOT") {
-      // Set flag to spawn bullet in Update function (only if cooldown is ready
-      // and not already set)
       float cooldown = getComponent<float>("shootCooldown");
       if (cooldown <= 0.0f && (!hasComponent("shouldShoot") ||
                                !getComponent<bool>("shouldShoot"))) {
@@ -715,3 +741,109 @@ public:
     }
   }
 };
+
+class Heart : public Entity {
+  inline static MemoryPool *MemPool = nullptr;
+
+public:
+  void *operator new(size_t size) {
+    if (!Heart::MemPool)
+      Heart::MemPool = new MemoryPool(sizeof(Heart), 16);
+    int sl_id = Heart::MemPool->alloc();
+    if (sl_id == -1)
+      return nullptr;
+    return Heart::MemPool->getPtr(sl_id);
+  }
+
+  void operator delete(void *ptr) {
+    Heart::MemPool->freeSlot(Heart::MemPool->getSlot(ptr));
+  }
+
+  Heart(float x, float y, float w, float h, Timeline *tl,
+        SDL_Renderer *renderer = nullptr)
+      : Entity(x, y, w, h, tl) {
+
+    entityType = "Heart";
+    EnablePhysics(false);
+    EnableCollision(false, false);
+    setComponent("destroyed", false);
+
+    if (renderer) {
+      SDL_Texture *tex = LoadTexture(renderer, "media/heart.bmp");
+      rendering.textures[0] = Texture{
+          .sheet = tex,
+          .num_frames_x = 1,
+          .num_frames_y = 1,
+          .frame_width = 32,
+          .frame_height = 32,
+          .loop = true,
+      };
+    }
+  }
+
+  void Update(float deltaTime, InputManager *input,
+              EntityManager *entitySpawner) override {
+    (void)deltaTime;
+    (void)input;
+
+    if (getComponent<bool>("destroyed") && entitySpawner) {
+      entitySpawner->RemoveEntity(this);
+    }
+  }
+};
+
+inline void Player::ResetGame(EntityManager *entitySpawner) {
+  SDL_Renderer *renderer = nullptr;
+  if (hasComponent("rendererPtr")) {
+    renderer = reinterpret_cast<SDL_Renderer *>(
+        getComponent<void *>("rendererPtr"));
+  }
+
+  // Remove all existing invaders and bullets
+  std::vector<Entity *> toRemove;
+  for (Entity *e : entitySpawner->getEntityVectorRef()) {
+    if (e && (e->entityType == "Invader_0" || e->entityType == "Invader_1" ||
+              e->entityType == "Invader_2" || e->entityType == "Bullet")) {
+      toRemove.push_back(e);
+    }
+  }
+  for (Entity *entity : toRemove) {
+    entitySpawner->RemoveEntity(entity);
+  }
+
+  // Create new hearts (3 hearts in top left corner)
+  const float heartSize = 32.0f;
+  const float heartGap = 10.0f;
+  const float heartStartX = 20.0f;
+  const float heartStartY = 20.0f;
+
+  for (int i = 0; i < 3; ++i) {
+    float x = heartStartX + i * (heartSize + heartGap);
+    Heart *heart =
+        new Heart(x, heartStartY, heartSize, heartSize, timeline, renderer);
+    entitySpawner->AddEntity(heart);
+  }
+
+  // Create new invaders (3 rows x 8 cols)
+  const int rows = 3;
+  const int cols = 8;
+  const float invaderWidth = 32.0f;
+  const float invaderHeight = 32.0f;
+  const float gapX = 30.0f;
+  const float gapY = 25.0f;
+  float screenWidth = getComponent<float>("screenWidth");
+  const float totalWidth = cols * invaderWidth + (cols - 1) * gapX;
+  const float startX = (screenWidth - totalWidth) * 0.5f;
+  const float startY = 100.0f;
+
+  for (int r = 0; r < rows; ++r) {
+    for (int c = 0; c < cols; ++c) {
+      float x = startX + c * (invaderWidth + gapX);
+      float y = startY + r * (invaderHeight + gapY);
+      int invaderType = (r + c) % 3;
+      Invader *invader =
+          new Invader(x, y, invaderWidth, invaderHeight, invaderType, timeline, renderer);
+      entitySpawner->AddEntity(invader);
+    }
+  }
+}

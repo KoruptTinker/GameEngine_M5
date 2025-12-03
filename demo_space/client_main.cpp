@@ -35,9 +35,13 @@ int main() {
                        client.GetRenderer());
   });
   client.RegisterEntity("Bullet", [&client]() -> Entity * {
-    // Bullet will be positioned and configured by server state
     return new Bullet(0, 0, 10, 10, nullptr, client.GetRootTimeline(),
                       client.GetRenderer());
+  });
+
+  client.RegisterEntity("Heart", [&client]() -> Entity * {
+    return new Heart(0, 0, 32, 32, client.GetRootTimeline(),
+                     client.GetRenderer());
   });
 
   // Connect to the server (assuming server is running on localhost)

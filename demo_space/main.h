@@ -443,9 +443,8 @@ public:
             // Add bullet to entity manager
             entitySpawner->AddEntity(bullet);
 
-            // Set individual cooldown to prevent spam
             setComponent("shootCooldown",
-                         1.1f); // 0.8 second cooldown per invader
+                         1.1f); 
           }
         }
       }

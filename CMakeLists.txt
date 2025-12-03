@@ -104,21 +104,21 @@ add_library(EngineCore STATIC
 target_include_directories(EngineCore PUBLIC src demo_brickbreaker demo_space)
 target_link_libraries(EngineCore PUBLIC SDL3::SDL3 libzmq cppzmq)
 
-add_executable(GameServer demo_brickbreaker/server_main.cpp)
-target_include_directories(GameServer PRIVATE src demo_brickbreaker)
-target_link_libraries(GameServer PRIVATE EngineCore)
+add_executable(BrickServer demo_brickbreaker/server_main.cpp)
+target_include_directories(BrickServer PRIVATE src demo_brickbreaker)
+target_link_libraries(BrickServer PRIVATE EngineCore)
 
-add_executable(GameClient demo_brickbreaker/client_main.cpp)
-target_include_directories(GameClient PRIVATE src demo_brickbreaker)
-target_link_libraries(GameClient PRIVATE EngineCore)
+add_executable(BrickClient demo_brickbreaker/client_main.cpp)
+target_include_directories(BrickClient PRIVATE src demo_brickbreaker)
+target_link_libraries(BrickClient PRIVATE EngineCore)
 
-add_executable(GameServerSpace demo_space/server_main.cpp)
-target_include_directories(GameServerSpace PRIVATE src demo_space)
-target_link_libraries(GameServerSpace PRIVATE EngineCore)
+add_executable(SpaceServer demo_space/server_main.cpp)
+target_include_directories(SpaceServer PRIVATE src demo_space)
+target_link_libraries(SpaceServer PRIVATE EngineCore)
 
-add_executable(GameClientSpace demo_space/client_main.cpp)
-target_include_directories(GameClientSpace PRIVATE src demo_space)
-target_link_libraries(GameClientSpace PRIVATE EngineCore)
+add_executable(SpaceClient demo_space/client_main.cpp)
+target_include_directories(SpaceClient PRIVATE src demo_space)
+target_link_libraries(SpaceClient PRIVATE EngineCore)
 
 message(STATUS "=== GameEngine Build Configuration ===")
 message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")

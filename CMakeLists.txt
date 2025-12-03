@@ -91,6 +91,7 @@ set(ENGINE_HEADERS
   src/Memory/MemoryPool.h
   demo_brickbreaker/main.h
   demo_space/main.h
+  game_cs/main.h
 )
 
 # ---------------- Core library (no main.cpp) ----------------
@@ -101,7 +102,7 @@ add_library(EngineCore STATIC
   ${CORE_SOURCES}
   ${ENGINE_HEADERS}
 )
-target_include_directories(EngineCore PUBLIC src demo_brickbreaker demo_space)
+target_include_directories(EngineCore PUBLIC src demo_brickbreaker demo_space game_cs)
 target_link_libraries(EngineCore PUBLIC SDL3::SDL3 libzmq cppzmq)
 
 add_executable(BrickServer demo_brickbreaker/server_main.cpp)
@@ -119,6 +120,14 @@ target_link_libraries(SpaceServer PRIVATE EngineCore)
 add_executable(SpaceClient demo_space/client_main.cpp)
 target_include_directories(SpaceClient PRIVATE src demo_space)
 target_link_libraries(SpaceClient PRIVATE EngineCore)
+
+add_executable(PlatformServer game_cs/server_main.cpp)
+target_include_directories(PlatformServer PRIVATE src game_cs)
+target_link_libraries(PlatformServer PRIVATE EngineCore)
+
+add_executable(PlatformClient game_cs/client_main.cpp)
+target_include_directories(PlatformClient PRIVATE src game_cs)
+target_link_libraries(PlatformClient PRIVATE EngineCore)
 
 message(STATUS "=== GameEngine Build Configuration ===")
 message(STATUS "CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")

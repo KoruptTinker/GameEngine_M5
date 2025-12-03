@@ -1,4 +1,3 @@
-// client_main.cpp - Breakout-style demo client
 #include "Networking/GameClient.h"
 #include "main.h"
 #include <iostream>

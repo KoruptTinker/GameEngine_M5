@@ -402,7 +402,7 @@ public:
             entitySpawner->AddEntity(bullet);
 
             setComponent("shootCooldown",
-                         1.1f); 
+                         1.5f); 
           }
         }
       }
